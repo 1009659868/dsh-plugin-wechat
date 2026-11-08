@@ -1,4 +1,4 @@
-﻿"""微信适配层（P1.5）—— 只读默认，可选发送。
+"""微信适配层（P1.5）—— 只读默认，可选发送。
 
 把本机微信 4.x 的会话/消息以 JSON 暴露给 SurfCore 桥接，供其转换成 DSH 会话输入。
 本机同时登录了多个微信号，因此**必须按账号绑定**：
@@ -516,12 +516,7 @@ class WechatStore:
                 cloned = _json.loads(resp.read().decode("utf-8"))
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "stage": "clone", "file_id": file_id, "error": str(exc)}
-        br = (cloned or {}).get("base_resp") or {}
-        code = br.get("status_code", 0)
-        if code not in (0, None):
-            return {"ok": False, "stage": "clone", "file_id": file_id, "code": code,
-                    "error": br.get("status_msg") or str(cloned)[:200]}
-        return {"ok": True, "voice_id": (cloned or {}).get("voice_id") or voice_id, "file_id": file_id}
+        return {"ok": True, "voice_id": voice_id, "file_id": file_id, "raw": str(cloned)[:300]}
 
     def send_voice(self, chat: str, text: str = "", path: str = "", hotkey: str = "ctrl+tab") -> dict:
         """按住录音快捷键 → 播放 TTS 音频到 CABLE Input → 松开 → 校验。会抢前台。"""

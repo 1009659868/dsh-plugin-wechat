@@ -1,4 +1,4 @@
-// SurfCore 微信桥接（M6）：微信 → DSH 会话 → 微信回复。
+﻿// SurfCore 微信桥接（M6）：微信 → DSH 会话 → 微信回复。
 //
 //   微信 ──UIA/DB──> wechat-adapter(:8823) ──HTTP──> 本进程 ──JSON-RPC──> DSH 会话(wechat-chat preset)
 //
@@ -36,36 +36,7 @@ function acquireLock() {
   });
 }
 
-let cfg = {};
-try {
-  cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-} catch {
-  // 首次运行没有 config.json：用默认值并落盘，用户的配置在面板里改
-  cfg = {
-    adapter: { baseUrl: 'http://127.0.0.1:8823', account: '', port: 8823, token: '' },
-    dsh: { baseUrl: '', authToken: '', agentPreset: 'wechat-chat', workspaceTitle: '微信聊天', sessionCwd: '' },
-    allow: { groups: [], private: [] },
-    botAliases: [],
-    pollMs: 3000,
-    replyTimeoutMs: 120000,
-    maxReplyChars: 600,
-    voice: { enabled: true, provider: 'minimax', apiKey: '', model: 'speech-02-hd', voiceId: 'female-tianmei', baseUrl: 'https://api.minimaxi.com', maxChars: 60, minIntervalMs: 90000, cooldownMs: 300000, hotkey: 'ctrl+tab' },
-  };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
-}
-cfg.adapter ??= { baseUrl: 'http://127.0.0.1:8823' };
-cfg.allow ??= { groups: [], private: [] };
-cfg.botAliases ??= [];
-cfg.dsh ??= {};
-cfg.dsh.agentPreset ??= 'wechat-chat';
-cfg.dsh.baseUrl ??= '';
-cfg.dsh.authToken ??= '';
-cfg.dsh.workspaceTitle ??= '微信聊天';
-cfg.dsh.sessionCwd ??= '';
-cfg.pollMs ??= 3000;
-cfg.replyTimeoutMs ??= 120000;
-cfg.maxReplyChars ??= 600;
-cfg.voice ??= {};
+const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
 const log = (...a) => console.log(new Date().toLocaleTimeString('zh-CN', { hour12: false }), ...a);
 
 function loadState() {
@@ -331,7 +302,7 @@ async function sendVoice(text, chatNick) {
     });
     const sent = await sendRes.json();
     voiceState.lastAt = Date.now();
-    if (!sent?.ok) throw new Error('send-file failed');
+    if (!sent?.ok) throw new Error('send-voice failed');
     voiceState.failures = 0;
     log(`[voice] ${chatNick}: ${content.slice(0, 24)}… (${tts.bytes}B cached=${tts.cached}) -> ok`);
     return { ok: true };
