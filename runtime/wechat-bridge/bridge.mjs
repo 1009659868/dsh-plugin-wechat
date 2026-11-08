@@ -56,6 +56,16 @@ try {
 cfg.adapter ??= { baseUrl: 'http://127.0.0.1:8823' };
 cfg.allow ??= { groups: [], private: [] };
 cfg.botAliases ??= [];
+cfg.dsh ??= {};
+cfg.dsh.agentPreset ??= 'wechat-chat';
+cfg.dsh.baseUrl ??= '';
+cfg.dsh.authToken ??= '';
+cfg.dsh.workspaceTitle ??= '微信聊天';
+cfg.dsh.sessionCwd ??= '';
+cfg.pollMs ??= 3000;
+cfg.replyTimeoutMs ??= 120000;
+cfg.maxReplyChars ??= 600;
+cfg.voice ??= {};
 const log = (...a) => console.log(new Date().toLocaleTimeString('zh-CN', { hour12: false }), ...a);
 
 function loadState() {

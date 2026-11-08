@@ -161,12 +161,25 @@ dsh plugin --profile desktop add github:wwsmiler1-bit/dsh-agent-md
 ## 安装
 
 ```powershell
-dsh plugin --profile desktop add "D:\path\to\dsh-plugin-wechat"
-# 重启 DSH（或让 profile 重载）后，设置里出现「微信」一节
+# 1. 装插件（从 GitHub 或本地目录）
+dsh plugin --profile desktop add github:1009659868/dsh-plugin-wechat
+
+# 2. 准备运行环境（建 Python venv、装依赖、npm install）
+cd "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-plugin-wechat"
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-runtime.ps1
+
+# 3. 重启 DSH → 设置 →「Wechat 鲸鲸」→ 一键启动
 ```
 
-然后在「微信」页把**桥接目录**指到 `wechat-bridge` 所在目录（含 `bridge.mjs` 与 `config.json`），
-点「一键启动」即可。
+插件**自带运行时**（`runtime/wechat-adapter` + `runtime/wechat-bridge`），所以：
+
+- **不需要**手填桥接目录，默认就是插件自带的 `runtime/wechat-bridge`；
+- 第一次「一键启动」时若还没有 `config.json`，桥接会自动生成一份默认配置；
+- 白名单、别名、API Key 都在设置页里改，保存后下一轮生效。
+
+> 如果 `setup-runtime.ps1` 报“找不到 python”：装 Python 3.10+ 并勾选 Add to PATH，或用
+> `-Python "C:\Path\To\python.exe"` 指定。
+> 桥接那步需要 Node 20+ 与 npm；没有 npm 时可加 `-SkipNode`，但桥接将无法启动。
 
 ## 依赖
 
@@ -174,7 +187,9 @@ dsh plugin --profile desktop add "D:\path\to\dsh-plugin-wechat"
 |---|---|
 | 系统 | Windows 10/11 |
 | 微信 | 4.x（读库 + UIA 均按 4.x 适配；3.9 不支持） |
-| Python | 3.12（adapter 的 venv） |
+| Python | 3.10+（脚本自动建 venv；3.12 验证过） |
+| Node | 20+ 与 npm（仅安装桥接依赖时用） |
+
 | Node | ≥22（bridge；DSH 自带运行时即可） |
 | DSH | 0.2.x，`wechat-chat` preset 已装（bridge 侧 fail-closed 校验） |
 

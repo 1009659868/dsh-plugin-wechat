@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   准备 Wechat 鲸鲸 的运行环境：Python 虚拟环境 + 桥接依赖。
