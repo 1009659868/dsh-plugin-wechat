@@ -486,16 +486,18 @@ class WechatStore:
         for _ in range(tries):
             if user32.GetForegroundWindow() == hwnd:
                 return True
-            user32.keybd_event(VK_MENU, 0, 0, 0)      # ALT down
-            user32.keybd_event(VK_MENU, 0, 0x0002, 0)  # ALT up
+            fg = user32.GetForegroundWindow()
+            tid_fg = user32.GetWindowThreadProcessId(fg, None)
+            tid_cur = ctypes.windll.kernel32.GetCurrentThreadId()
+            user32.AttachThreadInput(tid_cur, tid_fg, True)
             user32.BringWindowToTop(hwnd)
             user32.SetForegroundWindow(hwnd)
+            user32.AttachThreadInput(tid_cur, tid_fg, False)
             try:
                 user32.SwitchToThisWindow(hwnd, True)
             except Exception:
                 pass
             _t.sleep(0.3)
-        user32.keybd_event(VK_MENU, 0, 0x0002, 0)  # 确保 ALT 不残留，否则会弄坏主机的 Alt+Tab
         return user32.GetForegroundWindow() == hwnd
     def voice_clone(self, path: str, voice_id: str, api_key: str,
                     base_url: str = "https://api.minimaxi.com", provider: str = "minimax") -> dict:

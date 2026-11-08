@@ -24,6 +24,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_FILE = path.join(HERE, 'config.json');
 const STATE_FILE = path.join(HERE, 'state.json');
 const dryRun = process.argv.includes('--dry-run');
+// 任何未捕获的 socket 错误都不能让桥接整个死掉
+process.on('uncaughtException', (e) => { try { log('[fatal] 未捕获异常：', e && e.message ? e.message : e); } catch {} });
+process.on('unhandledRejection', (e) => { try { log('[fatal] 未处理拒绝：', e && e.message ? e.message : e); } catch {} });
 
 // ---------------- 单实例锁（防止面板/脚本重复拉起，两个桥接抢同一个游标）----------------
 const LOCK_PORT = 47822;
