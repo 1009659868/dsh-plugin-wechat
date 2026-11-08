@@ -470,6 +470,7 @@ class WechatStore:
             except Exception:
                 pass
             _t.sleep(0.3)
+        user32.keybd_event(VK_MENU, 0, 0x0002, 0)  # 确保 ALT 不残留，否则会弄坏主机的 Alt+Tab
         return user32.GetForegroundWindow() == hwnd
     def voice_clone(self, path: str, voice_id: str, api_key: str,
                     base_url: str = "https://api.minimaxi.com", provider: str = "minimax") -> dict:
@@ -939,6 +940,11 @@ def main() -> int:
     if args.host not in ("127.0.0.1", "::1", "localhost") and not args.token:
         print("拒绝启动：绑定非回环地址必须提供 --token", file=sys.stderr)
         return 2
+    try:
+        import ctypes as _ct
+        _ct.windll.user32.keybd_event(0x12, 0, 0x0002, 0)  # 启动时清一次 ALT
+    except Exception:
+        pass
     srv = ThreadingHTTPServer((args.host, args.port), make_handler(store, args.allow_send, args.token))
     print(f"[wechat-adapter] {args.host}:{args.port} account={args.account or '(auto)'} "
           f"mode={'读写' if args.allow_send else '只读'} send={args.send_mode}/{args.char_mode}")
