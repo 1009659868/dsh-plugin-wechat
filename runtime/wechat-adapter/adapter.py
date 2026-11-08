@@ -1,4 +1,4 @@
-"""微信适配层（P1.5）—— 只读默认，可选发送。
+﻿"""微信适配层（P1.5）—— 只读默认，可选发送。
 
 把本机微信 4.x 的会话/消息以 JSON 暴露给 SurfCore 桥接，供其转换成 DSH 会话输入。
 本机同时登录了多个微信号，因此**必须按账号绑定**：
@@ -395,20 +395,22 @@ class WechatStore:
             elif provider in ("breeze", "breezeblue"):
                 if not api_key:
                     return {"ok": False, "error": "Breeze Blue 需要 API Key"}
-                base = (base_url or "https://api.breezeblue.ai").rstrip("/")
-                url = f"{base}/v1/text-to-speech/{voice_id or ''}"
-                payload = _json.dumps({"text": text, "output_format": "mp3"}).encode("utf-8")
-                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}, method="POST")
                 try:
-                    with urllib.request.urlopen(req, timeout=90) as resp:
-                        ctype = resp.headers.get("Content-Type", "")
-                        data = resp.read()
+                    from pathlib import Path as _P
+
+                    from breeze_blue import BreezeBlue as _BB
+                    from breeze_blue import save as _bb_save
+
+                    client = _BB(api_key=api_key, base_url=base_url or "https://api.breeze.blue")
+                    audio = client.text_to_speech.convert(
+                        voice_id or "",
+                        text=text,
+                        output_format="mp3",
+                        model_id=model or None,
+                    )
+                    _bb_save(audio, _P(path))
                 except Exception as exc:  # noqa: BLE001
-                    return {"ok": False, "error": f"Breeze 请求失败：{exc}"}
-                if "audio" not in ctype and data[:1] == b"{":
-                    return {"ok": False, "error": f"Breeze 返回非音频：{data[:200]!r}"}
-                with open(path, "wb") as f:
-                    f.write(data)
+                    return {"ok": False, "error": f"Breeze 合成失败：{exc}"}
             elif provider == "minimax":
                 if not api_key:
                     return {"ok": False, "error": "minimax 需要 API Key（在面板里填）"}
@@ -469,8 +471,39 @@ class WechatStore:
             _t.sleep(0.3)
         return user32.GetForegroundWindow() == hwnd
     def voice_clone(self, path: str, voice_id: str, api_key: str,
-                    base_url: str = "https://api.minimaxi.com") -> dict:
-        """上传复刻音频 → 快速复刻 → 返回 voice_id。"""
+                    base_url: str = "https://api.minimaxi.com", provider: str = "minimax") -> dict:
+        """上传复刻音频 → 生成 voice_id（MiniMax 两步 / Breeze 预览+保存）。"""
+        if (provider or "").lower() in ("breeze", "breezeblue"):
+            import os as _os2
+            from pathlib import Path as _P
+
+            from breeze_blue import BreezeBlue as _BB
+
+            if not api_key:
+                return {"ok": False, "error": "Breeze Blue 需要 API Key"}
+            if not _os2.path.isfile(path):
+                return {"ok": False, "error": f"音频不存在：{path}"}
+            name = voice_id or "whale_clone"
+            try:
+                client = _BB(api_key=api_key, base_url=base_url or "https://api.breeze.blue")
+                preview = client.voices.create_clone_preview(
+                    name=name, file=_P(path), reference_language_code="zh"
+                )
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False, "stage": "preview", "error": str(exc)}
+            gen = getattr(preview, "generated_voice_id", None)
+            if not gen and isinstance(preview, dict):
+                gen = preview.get("generated_voice_id")
+            if not gen:
+                return {"ok": False, "stage": "preview", "error": str(preview)[:200]}
+            try:
+                saved = client.voices.save_preview(generated_voice_id=gen, voice_name=name)
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False, "stage": "save", "gen": gen, "error": str(exc)}
+            vid = getattr(saved, "voice_id", None)
+            if not vid and isinstance(saved, dict):
+                vid = saved.get("voice_id")
+            return {"ok": True, "voice_id": vid or gen, "gen": gen, "provider": "breezeblue"}
         import json as _json
         import os as _os
         import urllib.request
@@ -791,7 +824,7 @@ def make_handler(store: WechatStore, allow_send: bool, token: str = ""):
                         return self._json(400, {"ok": False, "error": "chat and text are required"})
                     return self._json(200, {"ok": True, **store.send(chat, text)})
                 if path == "/voice-clone":
-                    return self._json(200, store.voice_clone(str(payload.get("path") or ""), str(payload.get("voiceId") or ""), str(payload.get("apiKey") or ""), str(payload.get("baseUrl") or "https://api.minimaxi.com")))
+                    return self._json(200, store.voice_clone(str(payload.get("path") or ""), str(payload.get("voiceId") or ""), str(payload.get("apiKey") or ""), str(payload.get("baseUrl") or "https://api.minimaxi.com"), str(payload.get("provider") or "minimax")))
                 if path == "/voice-options":
                     return self._json(200, store.voice_options())
                 if path == "/voice-devices":
