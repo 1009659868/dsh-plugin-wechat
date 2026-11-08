@@ -377,7 +377,7 @@ class WechatStore:
         if not text:
             return {"ok": False, "error": "text 为空"}
         provider = (provider or "minimax").strip().lower()
-        if provider != "minimax":
+        if provider not in ("minimax", "breeze", "breezeblue"):
             return {"ok": False, "error": "仅支持 MiniMax 云端 TTS（免费备用方案已移除）"}
         cache_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "voice-cache")
         _os.makedirs(cache_dir, exist_ok=True)
@@ -401,7 +401,8 @@ class WechatStore:
                     from breeze_blue import BreezeBlue as _BB
                     from breeze_blue import save as _bb_save
 
-                    client = _BB(api_key=api_key, base_url=base_url or "https://api.breeze.blue")
+                    bb_base = base_url if (base_url and "breeze" in base_url) else "https://api.breeze.blue"
+                    client = _BB(api_key=api_key, base_url=bb_base)
                     audio = client.text_to_speech.convert(
                         voice_id or "",
                         text=text,
