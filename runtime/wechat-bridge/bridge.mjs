@@ -1,4 +1,4 @@
-﻿// SurfCore 微信桥接（M6）：微信 → DSH 会话 → 微信回复。
+// SurfCore 微信桥接（M6）：微信 → DSH 会话 → 微信回复。
 //
 //   微信 ──UIA/DB──> wechat-adapter(:8823) ──HTTP──> 本进程 ──JSON-RPC──> DSH 会话(wechat-chat preset)
 //
@@ -474,6 +474,11 @@ function allowed(chat) {
 
 /** 群里是否在叫我：`@别名` 或正文里直接出现别名（不要求 @）。 */
 const ALIASES = cfg.botAliases ?? ['鲸鲸'];
+function quotedMe(m) {
+  const q = m && m.quote;
+  return Boolean(q && (q.chatusr === selfAccount || (q.from && ALIASES.some((a) => a && String(q.from).includes(a)))));
+}
+
 function mentionsMe(text) {
   const t = String(text ?? '');
   return ALIASES.some((a) => a && (t.includes(`@${a}`) || t.includes(a)));
@@ -485,7 +490,8 @@ function buildPrompt(chat, focus, recent, voiceWanted = false, imageNotes = []) 
     const who = m.from_name || m.from || '某人';
     const text = String(m.text ?? '').replace(/\s+/g, ' ').slice(0, 200);
     const mark = m.__focus ? '★ ' : '  ';
-    return `${mark}${who}：${text}`;
+    const q = m.quote ? `[引用 ${m.quote.from || '某人'}：${String(m.quote.text || '').slice(0, 120)}] ` : '';
+    return `${mark}${who}：${q}${text}`;
   });
   const head = chat.kind === 'group'
     ? `【微信群】${label} 最近的对话（★ 是叫你/提到你的那几条）：`
@@ -548,7 +554,7 @@ async function tick() {
     let focus = fresh;
     let recent = fresh;
     if (chat.kind === 'group') {
-      focus = fresh.filter((m) => mentionsMe(m.text));
+      focus = fresh.filter((m) => mentionsMe(m.text) || quotedMe(m));
       if (!focus.length) {
         state.cursors[chat.username] = maxSeq;
         saveState(state);

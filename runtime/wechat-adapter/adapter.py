@@ -1,4 +1,4 @@
-﻿"""微信适配层（P1.5）—— 只读默认，可选发送。
+"""微信适配层（P1.5）—— 只读默认，可选发送。
 
 把本机微信 4.x 的会话/消息以 JSON 暴露给 SurfCore 桥接，供其转换成 DSH 会话输入。
 本机同时登录了多个微信号，因此**必须按账号绑定**：
@@ -181,6 +181,30 @@ class WechatStore:
         text = content
         if sender and text.startswith(sender + ":"):
             text = text[len(sender) + 1:].lstrip("\n ")
+        quote = None
+        if "<refermsg>" in content:
+            try:
+                import html as _html
+                import re as _re
+
+                block = content[content.find("<refermsg>"):]
+                name = _re.search(r"<displayname>(.*?)</displayname>", block, _re.S)
+                chatusr = _re.search(r"<chatusr>(.*?)</chatusr>", block, _re.S)
+                qtype = _re.search(r"<type>(\d+)</type>", block, _re.S)
+                body = _re.search(r"<content>(.*?)</content>", block, _re.S)
+                inner = _html.unescape(body.group(1)).strip() if body else ""
+                if inner.startswith("<?xml") or inner.startswith("<msg"):
+                    kind = (qtype.group(1) if qtype else "")
+                    inner = {"3": "[图片]", "4": "[链接]", "57": "[引用]"}.get(kind, "[非文本]")
+                else:
+                    inner = _re.sub(r"^wxid_\w+:\s*", "", inner)[:200]
+                quote = {
+                    "from": _html.unescape(name.group(1)).strip() if name else "",
+                    "chatusr": (chatusr.group(1).strip() if chatusr else ""),
+                    "text": inner,
+                }
+            except Exception:
+                quote = None
         return {
             "seq": m.get("sort_seq") or 0,
             "local_id": m.get("local_id"),
@@ -189,6 +213,7 @@ class WechatStore:
             "type": TYPE_MAP.get(raw_type, raw_type or "unknown"),
             "from": sender,
             "text": text,
+            "quote": quote,
         }
 
     # ---- 账号列表（面板选"用哪个号当鲸鲸"）----
