@@ -251,6 +251,14 @@ const VOICE_REQ = /(?:发|来|回)(?:我)?(?:一?[条个段句])?(?:语音|音�
 const VOICE_NEG = /不要|别|不用|不想|不能|怎么|如何|别人说|关闭|取消|[「『"“][^」』"”]*[」』"”]/;
 const voiceState = { lastAt: 0, failures: 0, cooldownUntil: 0 };
 
+// ---------------- 图片理解（视觉模型转述，聊天模型读描述）----------------
+const VISION = {
+  enabled: cfg.vision?.enabled !== false,
+  apiKey: cfg.vision?.apiKey ?? '',
+  baseUrl: cfg.vision?.baseUrl ?? 'https://open.bigmodel.cn/api/paas/v4',
+  model: cfg.vision?.model ?? 'glm-4.6v-flash',
+};
+
 function wantsVoice(text) {
   const t = String(text ?? '').trim();
   if (!t || t.length > 500) return false;
@@ -471,7 +479,7 @@ function mentionsMe(text) {
   return ALIASES.some((a) => a && (t.includes(`@${a}`) || t.includes(a)));
 }
 
-function buildPrompt(chat, focus, recent, voiceWanted = false) {
+function buildPrompt(chat, focus, recent, voiceWanted = false, imageNotes = []) {
   const label = chat.kind === 'group' ? `群「${chat.nick}」` : `和「${chat.nick}」的私聊`;
   const lines = recent.map((m) => {
     const who = m.from_name || m.from || '某人';
@@ -485,6 +493,7 @@ function buildPrompt(chat, focus, recent, voiceWanted = false) {
   const memory = memoryBlock(chat.username);
   const memes = memesBlock();
   return [
+    imageNotes.length ? '【最近的图片】（你看不到原图，只能依据下面这段描述；描述里没有的就直说看不到）\n' + imageNotes.join('\n') + '\n' : '',
     memes ? '【群里的梗】\n' + memes + '\n' : '',
     stickerBlock() ? '【表情包】（想发就另起一行写 `[表情: 描述]`，描述必须抄下面原文，一条最多一张）\n' + stickerBlock() + '\n' : '',
     memory.length ? '【你记得的事】\n' + memory.join('\n') + '\n' : '',
@@ -555,7 +564,25 @@ async function tick() {
     }
 
     const voiceAsked = focus.some((m) => wantsVoice(m.text ?? m.content));
-    const prompt = buildPrompt(chat, focus, recent, voiceAsked);
+    const imageNotes = [];
+    if (VISION.enabled && VISION.apiKey) {
+      const imgs = focus.filter((m) => m.type === 'image').slice(-2);
+      for (const img of imgs) {
+        try {
+          const r = await fetch(`${adapterBase}/describe-image`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', ...adapterHeaders },
+            body: JSON.stringify({ chat: chat.username, localId: img.local_id, apiKey: VISION.apiKey, baseUrl: VISION.baseUrl, model: VISION.model }),
+          });
+          const d = await r.json();
+          if (d?.ok && d.text) imageNotes.push(`- ${img.from}: ${d.text}`);
+          else log('[vision] 失败：', JSON.stringify(d).slice(0, 120));
+        } catch (error) {
+          log('[vision] 失败：', error?.message ?? error);
+        }
+      }
+    }
+    const prompt = buildPrompt(chat, focus, recent, voiceAsked, imageNotes);
     if (dryRun) {
       log(`[dry-run] ${chat.nick}（${fresh.length} 条）\n${prompt}\n`);
       state.cursors[chat.username] = maxSeq;

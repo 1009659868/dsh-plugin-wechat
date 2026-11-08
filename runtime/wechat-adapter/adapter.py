@@ -569,6 +569,67 @@ class WechatStore:
             return {"ok": False, "stage": "clone", "file_id": file_id, "error": str(exc)}
         return {"ok": True, "voice_id": voice_id, "file_id": file_id, "raw": str(cloned)[:300]}
 
+    def describe_image(self, user: str, local_id: int, api_key: str = "",
+                       base_url: str = "https://open.bigmodel.cn/api/paas/v4",
+                       model: str = "glm-4.6v-flash") -> dict:
+        """把一条图片消息落盘后交给视觉模型，返回文字描述（带缓存）。"""
+        import base64
+        import hashlib
+        import json as _json
+        import os as _os
+        import urllib.request
+
+        if not api_key:
+            return {"ok": False, "error": "需要视觉模型 API Key（智谱 GLM-4.6V-Flash 免费）"}
+        cache_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "image-cache")
+        _os.makedirs(cache_dir, exist_ok=True)
+        try:
+            from wechatauto import MediaDownloader
+
+            downloader = MediaDownloader(self.db(), save_dir=cache_dir)
+            path = downloader.download_image(user, int(local_id), save_dir=cache_dir)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "stage": "download", "error": str(exc)}
+        if not path or not _os.path.isfile(path):
+            return {"ok": False, "stage": "download", "error": "图片还没下载到本地（在微信里点开一次再试）"}
+        with open(path, "rb") as f:
+            blob = f.read()
+        key = hashlib.sha1(blob + model.encode()).hexdigest()
+        cache_file = _os.path.join(cache_dir, key + ".txt")
+        if _os.path.isfile(cache_file):
+            with open(cache_file, "r", encoding="utf-8") as f:
+                return {"ok": True, "text": f.read(), "cached": True, "path": path}
+        b64 = base64.b64encode(blob).decode("ascii")
+        payload = {
+            "model": model,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "用中文简洁描述这张图（1-3 句，说清主体、场景、有没有文字）。"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                ],
+            }],
+            "temperature": 0.2,
+        }
+        req = urllib.request.Request(
+            f"{base_url.rstrip('/')}/chat/completions",
+            data=_json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = _json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "stage": "vision", "error": str(exc)}
+        try:
+            text = (data["choices"][0]["message"]["content"] or "").strip()
+        except Exception:
+            return {"ok": False, "stage": "vision", "error": str(data)[:200]}
+        with open(cache_file, "w", encoding="utf-8") as f:
+            f.write(text)
+        return {"ok": True, "text": text, "cached": False, "path": path}
+
     def send_voice(self, chat: str, text: str = "", path: str = "", hotkey: str = "ctrl+tab") -> dict:
         """按住录音快捷键 → 播放 TTS 音频到 CABLE Input → 松开 → 校验。会抢前台。"""
         import ctypes
@@ -811,7 +872,7 @@ def make_handler(store: WechatStore, allow_send: bool, token: str = ""):
             if not self._authorized():
                 return self._json(401, {"ok": False, "error": "unauthorized"})
             path = urlparse(self.path).path
-            if path not in ("/send", "/send-file", "/send-image", "/tts", "/voice-devices", "/send-voice", "/voice-clone"):
+            if path not in ("/send", "/send-file", "/send-image", "/tts", "/voice-devices", "/send-voice", "/voice-clone", "/describe-image"):
                 return self._json(404, {"ok": False, "error": "not found"})
             if not allow_send:
                 return self._json(403, {"ok": False, "error": "send disabled; start with --allow-send"})
@@ -824,6 +885,8 @@ def make_handler(store: WechatStore, allow_send: bool, token: str = ""):
                     if not chat or not text:
                         return self._json(400, {"ok": False, "error": "chat and text are required"})
                     return self._json(200, {"ok": True, **store.send(chat, text)})
+                if path == "/describe-image":
+                    return self._json(200, store.describe_image(str(payload.get("chat") or ""), int(payload.get("localId") or 0), str(payload.get("apiKey") or ""), str(payload.get("baseUrl") or "https://open.bigmodel.cn/api/paas/v4"), str(payload.get("model") or "glm-4.6v-flash")))
                 if path == "/voice-clone":
                     return self._json(200, store.voice_clone(str(payload.get("path") or ""), str(payload.get("voiceId") or ""), str(payload.get("apiKey") or ""), str(payload.get("baseUrl") or "https://api.minimaxi.com"), str(payload.get("provider") or "minimax")))
                 if path == "/voice-options":
