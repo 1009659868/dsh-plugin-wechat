@@ -1,0 +1,25 @@
+{
+  "name": "dsh-plugin-wechat",
+  "version": "0.1.0",
+  "description": "微信接入 DeepSeek Harness：后台收发、@/别名触发、一键启停。Windows + 微信 4.x（本地数据库只读 + 后台消息通道，不抢焦点）。",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
+    }
+  },
+  "keywords": ["dsh", "dsh-plugin", "wechat", "微信", "uia", "agent"],
+  "license": "MIT"
+}

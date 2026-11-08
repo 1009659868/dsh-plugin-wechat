@@ -1,0 +1,5 @@
+# 本 bundle 的 patch：把自己插进 profile 的 loader 树。
+# id 固定，方便用户 patch 层按 id 覆盖配置。
+- insert:
+    - id: wechat-panel
+      name: 'dsh-plugin-wechat'
