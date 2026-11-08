@@ -392,6 +392,23 @@ class WechatStore:
                     await edge_tts.Communicate(text, voice).save(path)
 
                 asyncio.run(_run())
+            elif provider in ("breeze", "breezeblue"):
+                if not api_key:
+                    return {"ok": False, "error": "Breeze Blue 需要 API Key"}
+                base = (base_url or "https://api.breezeblue.ai").rstrip("/")
+                url = f"{base}/v1/text-to-speech/{voice_id or ''}"
+                payload = _json.dumps({"text": text, "output_format": "mp3"}).encode("utf-8")
+                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}, method="POST")
+                try:
+                    with urllib.request.urlopen(req, timeout=90) as resp:
+                        ctype = resp.headers.get("Content-Type", "")
+                        data = resp.read()
+                except Exception as exc:  # noqa: BLE001
+                    return {"ok": False, "error": f"Breeze 请求失败：{exc}"}
+                if "audio" not in ctype and data[:1] == b"{":
+                    return {"ok": False, "error": f"Breeze 返回非音频：{data[:200]!r}"}
+                with open(path, "wb") as f:
+                    f.write(data)
             elif provider == "minimax":
                 if not api_key:
                     return {"ok": False, "error": "minimax 需要 API Key（在面板里填）"}
