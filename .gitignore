@@ -1,0 +1,19 @@
+# 运行时产物（用户机器上生成，不进仓库）
+runtime/wechat-adapter/.venv/
+runtime/wechat-adapter/__pycache__/
+runtime/wechat-adapter/voice-cache/
+runtime/wechat-adapter/wechatauto_logs/
+runtime/wechat-bridge/node_modules/
+runtime/wechat-bridge/logs/
+runtime/wechat-bridge/sessions/
+runtime/wechat-bridge/config.json
+runtime/wechat-bridge/state.json
+runtime/wechat-bridge/memory.json
+runtime/wechat-bridge/.panel-pids.json
+
+# 通用
+node_modules/
+*.log
+.env
+.DS_Store
+Thumbs.db
